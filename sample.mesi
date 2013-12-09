@@ -11,8 +11,8 @@ make mesi_settings;
 make coe_gen_sii;
 
 // C code generation
-make coe_gen_c g5im_coe_h.mustache sample_coe.h;     // Object dictionary definition
-make coe_gen_c g5im_coe_c.mustache sample_coe.c;     // Object dictionary declarations and intialization
+make coe_gen_c coe_h.mustache sample_coe.h;     // Object dictionary definition
+make coe_gen_c coe_c.mustache sample_coe.c;     // Object dictionary declarations and intialization
 make coe_gen_c ecat_def_h.mustache ecat_def.h;       // SSC Project configuration
 make coe_gen_c esc_eeprom_c.mustache esc_eeprom.c;   // SII EEPROM emulation initializer
 
