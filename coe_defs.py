@@ -205,7 +205,11 @@ class coe_object:
         self.symbol = symbol
         self.description = description
         
+        # Sub objects
         self.subs = []
+        
+        # Arbitrary configuration properties
+        self.properties = {}
         
     def is_variable(self):
         """True if this object is of CoE VARIABLE type"""

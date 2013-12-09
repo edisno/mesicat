@@ -236,7 +236,7 @@ UINT read sTxPDOassign[] @0x1c13 "TxPDO Assignment" = { $tx_pdo_map_* };
 //////////////////////////////////////////////////////////////////////////
 // Channel Configuration
 //////////////////////////////////////////////////////////////////////////
-record readwrite channel_1_config @0x8200 "Channel 1 Configuration" {
+record readwrite channel_1_config @0x8200 "Channel 1 Configuration" .Write="update_pga" .Read="fetch_pga" .NonVolatileOffset=0x100 {
     USINT mode "Mode";
     USINT ch_a_gainsel "Channel A PGA Gain Selection";
     USINT ch_b_gainsel "Channel B PGA Gain Selection";

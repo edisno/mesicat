@@ -144,10 +144,6 @@ def parse(string):
         return field
     ACCESS.setParseAction(eval_access)
     
-    #PARENT_ACCESS = ACCESS.copy().setParseAction(parent_eval_access)
-    #CHILD_ACCESS = ACCESS.copy().setParseAction(child_eval_access)
-    
-    #MAP = Keyword("map")
     RECORD = Keyword("record")
     
     NAME = Word(alphas+"_", alphanums+"_.")
@@ -159,32 +155,19 @@ def parse(string):
         pat = re.compile(fnmatch.translate(symbol))
         return [coe_vars[k] for k in coe_vars.keys() if pat.match(k)]
     
-    #expr = Forward()
-    #operand = NAME | integer | char | string_
-    #expr << (operatorPrecedence(operand, 
-    #    [
-    #    (oneOf('! - *'), 1, opAssoc.RIGHT),
-    #    (oneOf('++ --'), 1, opAssoc.RIGHT),
-    #    (oneOf('++ --'), 1, opAssoc.LEFT),
-    #    (oneOf('* / %'), 2, opAssoc.LEFT),
-    #    (oneOf('+ -'), 2, opAssoc.LEFT),
-    #    (oneOf('< == > <= >= !='), 2, opAssoc.LEFT),
-    #    (Regex(r'=[^=]'), 2, opAssoc.LEFT),
-    #    ]) + 
-    #    Optional( LBRACK + expr + RBRACK | 
-    #              LPAR + Group(Optional(delimitedList(expr))) + RPAR )
-    #    )
-    
-    expr = MatchFirst([hex_integer, integer, "&" + NAME, "$" + NAME, NAME])
+    expr = MatchFirst([hex_integer, integer, "&" + NAME, "$" + NAME, NAME, dblQuotedString])
     class expr_eval():
         def __init__(self, tok):
             self.values = tok
         def eval(self, parent):
             t = self.values
+            
             if isinstance(t[0],int):
                 return t[0]
                 
-            if t[0]=='$':
+            if t[0][0]=='"':
+                return t[0][1:-1]
+            elif t[0]=='$':
                 f = lambda x: x.index
                 t = t[1:]
             elif t[0]=='&':
@@ -192,7 +175,7 @@ def parse(string):
                 t = t[1:]
             else:
                 f = lambda x: x.default
-            return f( coe_dict(t) )
+            return f( coe_vars[t] )
     expr.setParseAction(expr_eval)
     expr = Group( expr )
     
@@ -224,7 +207,7 @@ def parse(string):
     DESCRIPTION = (dblQuotedString.copy().setParseAction(removeQuotes))("description")
     STRING_LITERAL = dblQuotedString.copy().setParseAction(removeQuotes)
     DEFAULT = EQUAL + expr("default")
-    PROPERTY = Suppress('.') + NAME("property") + EQUAL + expr("value") #+ LPAR + expr("value") + RPAR
+    PROPERTY = Group(Suppress('.') + NAME("key") + EQUAL + expr("value")) #+ LPAR + expr("value") + RPAR    
     
     #expr.setDebug()
     #map_expr.setDebug()
@@ -266,7 +249,7 @@ def parse(string):
         def __repr__(self):
             return "assign_object(symbol='%s', default='%s')" % (self.symbol, self.default)
     
-    assign_stmt = NAME('symbol') + '=' + (expr | STRING_LITERAL)('default') + SEMI
+    assign_stmt = NAME('symbol') + '=' + expr('default') + SEMI
     class eval_assign():
         def __init__(self, tok):
             self.values = tok
@@ -343,7 +326,7 @@ def parse(string):
             return so
     subindex_statement.setParseAction(eval_subindex)    
     
-    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DESCRIPTION) + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
+    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DESCRIPTION) + ZeroOrMore(PROPERTY)("property") + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
     class eval_record():
         def __init__(self, tok):
             self.values = tok
@@ -368,7 +351,12 @@ def parse(string):
             
             for sis in statement_parms['subindex']:
                 obj.subs.append( sis.eval(obj) )
-            
+
+            obj.properties = {}            
+            if 'property' in statement_parms:
+                for prop in statement_parms['property']:
+                    obj.properties[prop['key']] = prop['value'][0].eval(self)
+
             return obj
     record_statement.setParseAction(eval_record)    
 

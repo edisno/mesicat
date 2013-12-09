@@ -189,7 +189,7 @@ def appl_context(world):
         (v>9 or v<-9) else v) for k,v in world.settings.iteritems())
         
     context.update({
-        'pdos':[{ 
+        'pdos':[dict(itertools.chain(pdo.properties.items(), { 
             'hex_index':pdo.hex_index(),
             'variable?':pdo.is_variable(),
             'array?':pdo.is_array(),
@@ -206,7 +206,7 @@ def appl_context(world):
             'objflags': hex(pdo.object_code << 8 | pdo.max_subindex()),
             'tx_pdo_map?':pdo.is_tx_pdo_map(),
             'rx_pdo_map?':pdo.is_rx_pdo_map(),
-        } for pdo in world.coe_dict],
+        }.items())) for pdo in world.coe_dict],
         'date':time.strftime("%A, %d %B %Y"),
         'appname':'mesicat.py',
     })

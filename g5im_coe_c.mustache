@@ -29,7 +29,7 @@ TOBJ{{hex_index}} {{symbol}} = { {{hex_defaults}} };
 TOBJECT ApplicationObjDic[] = {
 {{#pdos}}
     /* {{description}} */
-    {NULL,NULL,  0x{{hex_index}}, { {{deftype}}, {{objflags}} }, asEntryDesc0x{{hex_index}}, aName0x{{hex_index}}, &{{symbol}}, NULL, NULL, 0x0000},
+    {NULL,NULL,  0x{{hex_index}}, { {{deftype}}, {{objflags}} }, asEntryDesc0x{{hex_index}}, aName0x{{hex_index}}, &{{symbol}}, {{^Read}}NULL{{/Read}}{{#Read}}&{{Read}}{{/Read}}, {{^Write}}NULL{{/Write}}{{#Write}}&{{Write}}{{/Write}}, {{^NonVolatileOffset}}0{{/NonVolatileOffset}}{{NonVolatileOffset}} },
 {{/pdos}}    {NULL,NULL, 0xFFFF, {0, 0}, NULL, NULL, NULL, NULL, NULL, 0x0000}};
 
 /******************************************************************************
