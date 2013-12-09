@@ -38,12 +38,9 @@ from coe_defs import *
 ------------------------------------------------------------------------------
 mesi file outline:
 // Comment
-#define <define_symbol> <string>
+<define_symbol>=<value>;
 
-map [<access>] <symbol> [@<index>] ["<description>"] {
-    <symbol_regex>;
-    ...
-}
+make <module_name> [<arugments> ...];
 
 record [<access>] <symbol> [@<index>] ["<description>"] {
     [<basic_type> [<access>] symbol [@<subindex>] [=<default_value>] ["<description>"];]
@@ -52,7 +49,7 @@ record [<access>] <symbol> [@<index>] ["<description>"] {
 
 <basic_type> [<access>] <symbol> [@<index>] [=<default_value>] ["<description>"];
 
-<basic_type> [<access>] <symbol>\[<count>\] [@<index>] [={<default_value>[,<default_value>]}] ["<description>"];
+<basic_type> [<access>] <symbol>\[[<count>]\] [@<index>] [={<default_value>[,<default_value>]}] ["<description>"];
 
 ------------------------------------------------------------------------------
 
@@ -226,7 +223,8 @@ def parse(string):
     INDEX = Suppress('@') + expr("index")
     DESCRIPTION = (dblQuotedString.copy().setParseAction(removeQuotes))("description")
     STRING_LITERAL = dblQuotedString.copy().setParseAction(removeQuotes)
-    DEFAULT = Suppress('=') + expr("default")
+    DEFAULT = EQUAL + expr("default")
+    PROPERTY = Suppress('.') + NAME("property") + EQUAL + expr("value") #+ LPAR + expr("value") + RPAR
     
     #expr.setDebug()
     #map_expr.setDebug()
@@ -286,8 +284,6 @@ def parse(string):
 
             return None
     assign_stmt.setParseAction(eval_assign)    
-    
-    #map_stmt = MAP + ACCESS + NAME + Group(ZeroOrMore(INDEX | DESCRIPTION)) + Group(LBRACE + OneOrMore(map_expr + SEMI) + RBRACE) + SEMI
     
     variable_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DEFAULT | DESCRIPTION) + SEMI;
     subindex_statement = variable_statement.copy()

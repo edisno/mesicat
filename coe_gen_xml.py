@@ -33,21 +33,6 @@ import sys
 import ethercatinfo as eci
 from coe_defs import *
 
-def gim():
-    "REPL helper to examine G5IM element"
-    esi = eci.parse('G5IM_EtherCATInfo.xml',silence=True)
-    esi.export(sys.stdout, 0, name_='EtherCATInfo', namespacedef_='', pretty_print=True)
-    # Identify G5 Instrument Module Device node
-
-    g5im = next((n for n in esi.Descriptions.Devices.Device if 
-        next((m for m in n.Name if 
-            m.LcId==1033 and m.valueOf_=='G5IM'), None)), None)
-    
-    if g5im is None:
-        print 'G5IM device not found in XML'
-
-    return g5im
-
 def hexdecvaluetoint(hdv):
     """Convert HexDecValue to int. Will fail if argument has leading zeroes"""
     return int(hdv.replace('#x','0x'),0)
@@ -65,13 +50,13 @@ def make(world, *args):
     "Modify ESI file based on our application dictionary"
     esi = eci.parse(args[0],silence=True)
     
-    # Identify G5 Instrument Module Device node
-    g5im = next((n for n in esi.Descriptions.Devices.Device if 
+    # Identify Device node
+    device = next((n for n in esi.Descriptions.Devices.Device if 
         next((m for m in n.Name if 
-            m.LcId==1033 and m.valueOf_=='G5IM'), None)), None)
+            m.LcId==1033 and m.valueOf_==settings['TYPE_NAME']), None)), None)
     
-    if g5im is None:
-        print 'G5IM device not found in XML'
+    if device is None:
+        print 'Device not found in XML'
         return
         
     #ET9300 6.5.2.1 Adaptation steps
@@ -106,23 +91,23 @@ def make(world, *args):
         return default_size
 
     # Purge and refill Device/RxPdo on SM2
-    rxpdo_default_size = purge_fill_map(g5im.RxPdo,0x1600,2)
+    rxpdo_default_size = purge_fill_map(device.RxPdo,0x1600,2)
     
     # Purge and refill Device/TxPdo on SM3
-    txpdo_default_size = purge_fill_map(g5im.TxPdo,0x1a00,3)
+    txpdo_default_size = purge_fill_map(device.TxPdo,0x1a00,3)
 
     #Step 10: Update size of sync manager
     # Update default size for SM2
     print 'RxPDO bit size',rxpdo_default_size
-    g5im.Sm[2].DefaultSize=str((rxpdo_default_size+7)/8)
+    device.Sm[2].DefaultSize=str((rxpdo_default_size+7)/8)
     # Update default size for SM3
     print 'TxPDO bit size',txpdo_default_size
-    g5im.Sm[3].DefaultSize=str((txpdo_default_size+7)/8)
+    device.Sm[3].DefaultSize=str((txpdo_default_size+7)/8)
     
     #Step [missing]: Define Profile/Dictionary/DataTypes
     # Loop over existing types and build a dictionary on Name 
     data_types = {}
-    for dtt in g5im.Profile[0].Dictionary.DataTypes.DataType:
+    for dtt in device.Profile[0].Dictionary.DataTypes.DataType:
         if dtt.Name=='DT1018':
             data_types[dtt.Name] = dtt
     
@@ -187,11 +172,11 @@ def make(world, *args):
                     ])
     
     # Map updated DataTypes back to sorted list and update XML
-    g5im.Profile[0].Dictionary.DataTypes.DataType = sorted(
+    device.Profile[0].Dictionary.DataTypes.DataType = sorted(
         data_types.itervalues(), key=lambda x: x.Name)
     
     # Debug report
-    #g5im.Profile[0].Dictionary.DataTypes.export(sys.stdout, 0, pretty_print=True)
+    #device.Profile[0].Dictionary.DataTypes.export(sys.stdout, 0, pretty_print=True)
 
     # Defined object types
     def make_flags_type24(subobject):
@@ -208,7 +193,7 @@ def make(world, *args):
     #Step [missing]: Define Profile/Dictionary/Objects
     # Loop over existing types and build a dictionary on Index 
     dictionary_objects = {}
-    for ot in g5im.Profile[0].Dictionary.Objects.Object:
+    for ot in device.Profile[0].Dictionary.Objects.Object:
         index = hexdecvaluetoint(ot.Index.valueOf_)
         # discard existing assigns, mappings, and pdos
         if index < 0x1100:
@@ -244,30 +229,30 @@ def make(world, *args):
             )
 
     # Map updated Objects back to sorted list and update XML
-    g5im.Profile[0].Dictionary.Objects.Object = sorted(
+    device.Profile[0].Dictionary.Objects.Object = sorted(
         dictionary_objects.itervalues(), key=lambda x: x.Index.valueOf_.lower())
    
     # Set ether port interface type
-    g5im.Physics=settings['physics'] 
+    device.Physics=settings['physics'] 
     
     # Set device type identification
-    g5im.Type.ProductCode = hexdec(settings['PRODUCT_CODE'])
-    g5im.Type.RevisionNo = hexdec(settings['REVISION_NUMBER'])
-    g5im.Type.valueOf_ = settings['TYPE_NAME']
+    device.Type.ProductCode = hexdec(settings['PRODUCT_CODE'])
+    device.Type.RevisionNo = hexdec(settings['REVISION_NUMBER'])
+    device.Type.valueOf_ = settings['TYPE_NAME']
     
     # FMMU
-    del g5im.Fmmu[:]
+    del device.Fmmu[:]
     for i in xrange(8):
         fmmu = settings.get('fmmu%d.mode'%i, 0xff)
         if fmmu==1:
-            g5im.Fmmu.append( eci.FmmuType(valueOf_='Outputs'))
+            device.Fmmu.append( eci.FmmuType(valueOf_='Outputs'))
         if fmmu==2:
-            g5im.Fmmu.append( eci.FmmuType(valueOf_='Inputs'))
+            device.Fmmu.append( eci.FmmuType(valueOf_='Inputs'))
         if fmmu==3:
-            g5im.Fmmu.append( eci.FmmuType(valueOf_='MBoxState'))
+            device.Fmmu.append( eci.FmmuType(valueOf_='MBoxState'))
 
     # Sync Masters
-    del g5im.Sm[:]
+    del device.Sm[:]
     for i in xrange(8):
         pre = 'sm%d.' % i
         
@@ -275,7 +260,7 @@ def make(world, *args):
             def prop(key):
                 return settings.get(pre+key,0)
 
-            g5im.Sm.append(eci.SmType(
+            device.Sm.append(eci.SmType(
                 Enable=prop('enable'),
                 DefaultSize=prop('size'),
                 ControlByte=hexdec(prop('control')),
@@ -285,7 +270,7 @@ def make(world, *args):
                 valueOf_=[None,'MBoxOut','MBoxIn','Outputs','Inputs'][prop('type')]))
 
     # Distributed Clock
-    del g5im.Dc.OpMode[:]
+    del device.Dc.OpMode[:]
     for i in xrange(8):
         pre = 'dc%d.' % i
         
@@ -293,7 +278,7 @@ def make(world, *args):
             def prop(key):
                 return settings.get(pre+key,0)
 
-            g5im.Dc.OpMode.append(eci.OpModeType(
+            device.Dc.OpMode.append(eci.OpModeType(
                 Name=str(prop('name')),
                 Desc=str(prop('desc')),
                 AssignActivate=str(prop('assign_activate')),
@@ -313,14 +298,14 @@ def make(world, *args):
                 )))
 
     # SII EERPOM
-    g5im.Eeprom=eci.EepromType16(
+    device.Eeprom=eci.EepromType16(
         ByteSize=settings['ESC_EEPROM_SIZE'],
         ConfigData=settings['config_data'],
         BootStrap=settings['bootstrap'])
 
     # Debug report
-    #print type(g5im.Sm[0])
-    #g5im.Sm[0].exportLiteral(sys.stdout,0)
+    #print type(device.Sm[0])
+    #device.Sm[0].exportLiteral(sys.stdout,0)
     
     ### Output modified XML
     with open(args[1],'w') as outfile:
