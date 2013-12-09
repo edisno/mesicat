@@ -207,7 +207,7 @@ def parse(string):
     DESCRIPTION = (dblQuotedString.copy().setParseAction(removeQuotes))("description")
     STRING_LITERAL = dblQuotedString.copy().setParseAction(removeQuotes)
     DEFAULT = EQUAL + expr("default")
-    PROPERTY = Group(Suppress('.') + NAME("key") + EQUAL + expr("value")) #+ LPAR + expr("value") + RPAR    
+    PROPERTY = ZeroOrMore(Group(Suppress('.') + NAME("key") + EQUAL + expr("value")))("property")
     
     #expr.setDebug()
     #map_expr.setDebug()
@@ -248,7 +248,10 @@ def parse(string):
             self.default = value
         def __repr__(self):
             return "assign_object(symbol='%s', default='%s')" % (self.symbol, self.default)
-    
+    def add_coe_literal(symbol, value):    
+        obj = assign_object(symbol, value)
+        coe_vars[symbol] = obj
+        
     assign_stmt = NAME('symbol') + '=' + expr('default') + SEMI
     class eval_assign():
         def __init__(self, tok):
@@ -262,13 +265,12 @@ def parse(string):
             if not isinstance(default, basestring):
                 default = default[0].eval(self)
             
-            obj = assign_object(symbol, default)
-            coe_vars[symbol] = obj
+            add_coe_literal(symbol, default)
 
             return None
     assign_stmt.setParseAction(eval_assign)    
     
-    variable_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DEFAULT | DESCRIPTION) + SEMI;
+    variable_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DEFAULT | DESCRIPTION) + PROPERTY + SEMI;
     subindex_statement = variable_statement.copy()
     class eval_variable():
         def __init__(self, tok):
@@ -297,6 +299,15 @@ def parse(string):
             
             obj.add(default,access=access,index=index,subindex=0,btype=btype,symbol=symbol,description=description)
             coe_vars[symbol] = obj
+
+            obj.properties = {}            
+            if 'property' in statement_parms:
+                for prop in statement_parms['property']:
+                    key = prop['key']
+                    value = prop['value'][0].eval(self)
+                    obj.properties[key] = value
+                    add_coe_literal('.'.join((symbol,key)), value)
+
             return obj
     variable_statement.setParseAction(eval_variable)    
 
@@ -326,7 +337,7 @@ def parse(string):
             return so
     subindex_statement.setParseAction(eval_subindex)    
     
-    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DESCRIPTION) + ZeroOrMore(PROPERTY)("property") + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
+    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DESCRIPTION) + PROPERTY + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
     class eval_record():
         def __init__(self, tok):
             self.values = tok
@@ -355,12 +366,15 @@ def parse(string):
             obj.properties = {}            
             if 'property' in statement_parms:
                 for prop in statement_parms['property']:
-                    obj.properties[prop['key']] = prop['value'][0].eval(self)
+                    key = prop['key']
+                    value = prop['value'][0].eval(self)
+                    obj.properties[key] = value
+                    add_coe_literal('.'.join((symbol,key)), value)
 
             return obj
     record_statement.setParseAction(eval_record)    
 
-    array_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + LBRACK + Optional(expr("size")) + RBRACK + ZeroOrMore(INDEX | DESCRIPTION) + Optional(EQUAL + LBRACE + list_expr("values") + RBRACE) + SEMI
+    array_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + LBRACK + Optional(expr("size")) + RBRACK + ZeroOrMore(INDEX | DESCRIPTION) + PROPERTY + Optional(EQUAL + LBRACE + list_expr("values") + RBRACE) + SEMI
     class eval_array():
         def __init__(self, tok):
             self.values = tok
@@ -396,6 +410,14 @@ def parse(string):
             
             obj.add(*default_values,access=access,index=index,btype=btype)
             
+            obj.properties = {}            
+            if 'property' in statement_parms:
+                for prop in statement_parms['property']:
+                    key = prop['key']
+                    value = prop['value'][0].eval(self)
+                    obj.properties[key] = value
+                    add_coe_literal('.'.join((symbol,key)), value)
+
             return obj
     array_statement.setParseAction(eval_array)    
     
