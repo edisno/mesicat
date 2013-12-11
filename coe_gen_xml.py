@@ -75,6 +75,10 @@ def make(world, *args):
             pdo_xml.Entry = []
             for mso in pdo_map_entry.subs[1:]:
                 so = find_by_map_loc(coe_dict,mso.default)
+                
+                cbtype = canonical_btype(so.btype)
+                if not cbtype:
+                    continue
             
                 pdo_xml.Entry.append(eci.EntryType36(
                     Index=eci.IndexType33(valueOf_=so.xml_index()),
@@ -83,7 +87,7 @@ def make(world, *args):
                     Name=[
                         eci.NameType(LcId=1033,valueOf_=so.description)
                     ],
-                    DataType=eci.DataTypeType34(valueOf_=so.btype)
+                    DataType=eci.DataTypeType34(valueOf_=cbtype)
                 )) 
                 default_size += so.pdo_bitsize()
             pdomap.append( pdo_xml )
@@ -113,8 +117,11 @@ def make(world, *args):
     
     # Insert or update our known Basic types to dictionary
     for btype,coetype in coe_types.iteritems():
-        #print btype,coetype
-        data_types[btype] = eci.DataTypeType(Name=btype,BitSize=coetype.pdo_bitsize)
+        cbtype = canonical_btype(btype)
+        if not cbtype:
+            continue
+        #print cbtype,coetype
+        data_types[cbtype] = eci.DataTypeType(Name=cbtype,BitSize=coetype.pdo_bitsize)
     
     def make_flags_type(subobject):
         access = subobject.access_code
@@ -145,10 +152,10 @@ def make(world, *args):
             data_types[name] = eci.DataTypeType(
                 Name=name,BitSize=obj.sdo_bitsize(),SubItem=[
                     eci.SubItemType(SubIdx=str(so.subindex), Name=so.description,
-                                Type=so.btype,BitSize=so.pdo_bitsize(),
+                                Type=canonical_btype(so.btype),BitSize=so.pdo_bitsize(),
                                 BitOffs=obj.sdo_bitoffset(so.subindex), 
                                 Flags=make_flags_type(so) )
-                    for so in obj.subs])
+                    for so in obj.subs if canonical_btype(so.btype)])
         if obj.is_array():
             # Save data type name for later XML use
             obj.data_type = name
@@ -158,15 +165,17 @@ def make(world, *args):
             data_types[name] = eci.DataTypeType(
                 Name=name,BitSize=obj.sdo_bitsize(),SubItem=[
                     eci.SubItemType(SubIdx='0', Name=so0.description,
-                                Type=so0.btype,BitSize=so0.pdo_bitsize(),
+                                Type=canonical_btype(so0.btype),BitSize=so0.pdo_bitsize(),
                                 BitOffs=obj.sdo_bitoffset(0), 
                                 Flags=make_flags_type(so0) ),
-                    eci.SubItemType(SubIdx='1', Name='Elements',
+                    eci.SubItemType(SubIdx=None, Name='Elements',
                                 Type=name_arr,BitSize=obj.pdo_data_bitsize(),
                                 BitOffs=obj.sdo_bitoffset(1), 
-                                Flags=make_flags_type(so1) )])
+                                Flags=make_flags_type(so1) )
+                ])
             data_types[name_arr] = eci.DataTypeType(
-                Name=name_arr,BitSize=obj.sdo_bitsize(),BaseType=so1.btype,
+                Name=name_arr,BitSize=obj.sdo_bitsize(),
+                    BaseType=canonical_btype(so1.btype),
                     ArrayInfo=[
                         eci.ArrayInfoType(LBound=1,Elements=obj.max_subindex())
                     ])
@@ -208,7 +217,7 @@ def make(world, *args):
             dictionary_objects[hexdecvaluetoint(index)] = eci.ObjectType(
                 Index=eci.IndexType(valueOf_=index),
                 Name=[eci.NameType(LcId=1033,valueOf_=obj.description)],
-                Type=so0.btype,
+                Type=canonical_btype(so0.btype),
                 BitSize=so0.pdo_bitsize(),
                 Info=eci.ObjectInfoType(DefaultData=so0.hexbinary_default()),
                 Flags=make_flags_type24(so0)

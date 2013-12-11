@@ -30,6 +30,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 import struct
 import itertools
+import string
 
 class coe_type:
     def __init__(self, pdo_bitsize, sdo_bitsize, cdef, coetype, ctype, pyformat):
@@ -43,7 +44,11 @@ class coe_type:
 # Valid Basic Data types for this application. 
 # See ETG.2000 section 7 table 7
 # See ETG.1000.6 5.6.7.3
-# The fake type BECKHOFF816 works around a subindex 0 issue in the SSC.
+# Types with a dot (e.g. USINT.16) are truncated at the dot prior to use
+# in ESI context. If the type has zero length after truncation, it is
+# not emitted to the ESI file. This allows padding in the C domain to 
+# be consistent with BitOffs in the ESI domain.
+# The fake type USINT.16 works around a subindex 0 issue in the SSC.
 # The SI0 max subindex is advertised in the CoE dictionary as an 8 bit
 # unsigned, but is allocated in the in-memory CoE object as
 # 16 bit unsigned. This has no impact on the PDO transfer, as SI0 is 
@@ -55,18 +60,22 @@ class coe_type:
 # SDO offsets are determined. 
 # The SSC should eventually be fixed such that SI0 can be USINT as per spec
 coe_types = {
-    'BECKHOFF816':  coe_type(8,16, 'UNSIGNED8',      5, 'uint16_t %s',    'B'),
-    'PAD1':         coe_type(1,1,  'NULL',           0, 'unsigned %s:1',  'B'),
-    'PAD2':         coe_type(2,2,  'NULL',           0, 'unsigned %s:2',  'B'),
-    'PAD3':         coe_type(3,3,  'NULL',           0, 'unsigned %s:3',  'B'),
-    'PAD4':         coe_type(4,4,  'NULL',           0, 'unsigned %s:4',  'B'),
-    'PAD5':         coe_type(5,5,  'NULL',           0, 'unsigned %s:5',  'B'),
-    'PAD6':         coe_type(6,6,  'NULL',           0, 'unsigned %s:6',  'B'),
-    'PAD7':         coe_type(7,7,  'NULL',           0, 'unsigned %s:7',  'B'),
-    'PAD8':         coe_type(8,8,  'NULL',           0, 'unsigned %s:8',  'B'),
+    'USINT.16':     coe_type(8,16, 'UNSIGNED8',      5, 'uint16_t %s',    'B'),
+    '.PAD1':        coe_type(1,1,  'NULL',           0, 'unsigned %s:1',  'B'),
+    '.PAD2':        coe_type(2,2,  'NULL',           0, 'unsigned %s:2',  'B'),
+    '.PAD3':        coe_type(3,3,  'NULL',           0, 'unsigned %s:3',  'B'),
+    '.PAD4':        coe_type(4,4,  'NULL',           0, 'unsigned %s:4',  'B'),
+    '.PAD5':        coe_type(5,5,  'NULL',           0, 'unsigned %s:5',  'B'),
+    '.PAD6':        coe_type(6,6,  'NULL',           0, 'unsigned %s:6',  'B'),
+    '.PAD7':        coe_type(7,7,  'NULL',           0, 'unsigned %s:7',  'B'),
+    '.PAD8':        coe_type(8,8,  'NULL',           0, 'unsigned %s:8',  'B'),
     'BOOL':         coe_type(1,1,  'BOOLEAN',        1, 'unsigned %s:1',  'B'),
     'BIT2':         coe_type(2,2,  'BIT2',        0x31, 'unsigned %s:2',  'B'),
     'BIT3':         coe_type(3,3,  'BIT3',        0x32, 'unsigned %s:3',  'B'),
+    'BIT4':         coe_type(4,4,  'BIT4',        0x33, 'unsigned %s:4',  'B'),
+    'BIT5':         coe_type(5,5,  'BIT5',        0x34, 'unsigned %s:5',  'B'),
+    'BIT6':         coe_type(6,6,  'BIT6',        0x35, 'unsigned %s:6',  'B'),
+    'BIT7':         coe_type(7,7,  'BIT7',        0x36, 'unsigned %s:7',  'B'),
     'SINT':         coe_type(8,8,  'INTEGER8',       2, 'int8_t %s',      'b'),
     'USINT':        coe_type(8,8,  'UNSIGNED8',      5, 'uint8_t %s',     'B'),
     'INT':          coe_type(16,16,'INTEGER16',      3, 'int16_t %s',     'h'),
@@ -78,6 +87,16 @@ coe_types = {
     'STRING(8)':    coe_type(64,64,'VISIBLESTRING',  9, 'char *%s',      '8s'),
     'STRING(10)':   coe_type(80,80,'VISIBLESTRING',  9, 'char *%s',      '10s')
 }
+
+def canonical_btype(btype):
+    """Return the canonical (ETG conforming) basic type name, or None"""
+    dot = string.rfind(btype,'.')
+    if dot == -1:
+        return btype
+    cbtype = btype[:dot]
+    if len(cbtype):
+        return cbtype
+    return None
 
 class coe_sub_object:
     """A representation of CoE dictionary sub-objects. A sub object always has 
@@ -241,7 +260,7 @@ class coe_object:
         """
         if self.is_record():
             self.subs = [
-                coe_sub_object(self.index, 0, 'r-r-r-', 'BECKHOFF816', 
+                coe_sub_object(self.index, 0, 'r-r-r-', 'USINT.16', 
                                'u16SubIndex0', len(args), 'Subindex 000' ),
             ]
             for i,atuple in enumerate(args):
@@ -277,7 +296,7 @@ class coe_object:
                 self.array_size = len(args)
                 
             self.subs = [
-                coe_sub_object(self.index, 0, 'r-r-r-', 'BECKHOFF816', 
+                coe_sub_object(self.index, 0, 'r-r-r-', 'USINT.16', 
                                'u16SubIndex0', self.array_size, 'Subindex 000' ),
             ]
             
