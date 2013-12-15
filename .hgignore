@@ -1,0 +1,8 @@
+syntax: glob
+*.pyc
+*.c
+*.h
+*.bin
+*.zip
+Sample_EtherCATInfo.xml
+*.xsd
