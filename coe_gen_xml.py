@@ -96,17 +96,20 @@ def make(world, *args):
 
     # Purge and refill Device/RxPdo on SM2
     rxpdo_default_size = purge_fill_map(device.RxPdo,0x1600,2)
-    
+    rxpdo_default_size_bytes = (rxpdo_default_size+7)/8
+
     # Purge and refill Device/TxPdo on SM3
     txpdo_default_size = purge_fill_map(device.TxPdo,0x1a00,3)
+    txpdo_default_size_bytes = (txpdo_default_size+7)/8
 
     #Step 10: Update size of sync manager
     # Update default size for SM2
-    print 'RxPDO bit size',rxpdo_default_size
-    device.Sm[2].DefaultSize=str((rxpdo_default_size+7)/8)
+    print 'RxPDO bit size %d bits, %d bytes' % (rxpdo_default_size, rxpdo_default_size_bytes)
+    settings['sm2.size'] = str(rxpdo_default_size_bytes)
+
     # Update default size for SM3
-    print 'TxPDO bit size',txpdo_default_size
-    device.Sm[3].DefaultSize=str((txpdo_default_size+7)/8)
+    print 'TxPDO bit size %d bits, %d bytes' % (txpdo_default_size, txpdo_default_size_bytes)
+    settings['sm3.size'] = str(txpdo_default_size_bytes)
     
     #Step [missing]: Define Profile/Dictionary/DataTypes
     # Loop over existing types and build a dictionary on Name 
@@ -174,7 +177,7 @@ def make(world, *args):
                                 Flags=make_flags_type(so1) )
                 ])
             data_types[name_arr] = eci.DataTypeType(
-                Name=name_arr,BitSize=obj.sdo_bitsize(),
+                Name=name_arr,BitSize=so1.pdo_bitsize()*obj.max_subindex(),
                     BaseType=canonical_btype(so1.btype),
                     ArrayInfo=[
                         eci.ArrayInfoType(LBound=1,Elements=obj.max_subindex())
@@ -312,9 +315,12 @@ def make(world, *args):
         ConfigData=settings['config_data'],
         BootStrap=settings['bootstrap'])
 
+    # Force reserved RealTimeMode to None
+    device.Mailbox.RealTimeMode=None
+
     # Debug report
     #print type(device.Sm[0])
-    #device.Sm[0].exportLiteral(sys.stdout,0)
+    #print device.Mailbox.exportLiteral(sys.stdout,0)
     
     ### Output modified XML
     with open(args[1],'w') as outfile:
