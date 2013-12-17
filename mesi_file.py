@@ -362,7 +362,8 @@ def parse(string):
             
             for sis in statement_parms['subindex']:
                 obj.subs.append( sis.eval(obj) )
-
+            obj.subs[0].default = obj.max_subindex()
+			
             obj.properties = {}            
             if 'property' in statement_parms:
                 for prop in statement_parms['property']:
