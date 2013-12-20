@@ -48,17 +48,6 @@ class coe_type:
 # in ESI context. If the type has zero length after truncation, it is
 # not emitted to the ESI file. This allows padding in the C domain to 
 # be consistent with BitOffs in the ESI domain.
-# The fake type USINT.16 works around a subindex 0 issue in the SSC.
-# The SI0 max subindex is advertised in the CoE dictionary as an 8 bit
-# unsigned, but is allocated in the in-memory CoE object as
-# 16 bit unsigned. This has no impact on the PDO transfer, as SI0 is 
-# not included, and the data is copied explicitly. For the SDO bulk 
-# transfer, however, the in-memory layout is controlling, so the 
-# SDO bit offset of the subsequent SDOn data (n>0) must take into account the
-# 16 bits allocated for SI0. As such, we must double book the PDO and SDO
-# bit size, so the correct dictionary type/size is reported, and the correct
-# SDO offsets are determined. 
-# The SSC should eventually be fixed such that SI0 can be USINT as per spec
 coe_types = {
     'USINT.16':     coe_type(8,16, 'UNSIGNED8',      5, 'uint16_t %s',    'B'),
     '.PAD1':        coe_type(1,1,  'NULL',           0, 'unsigned %s:1',  'B'),
