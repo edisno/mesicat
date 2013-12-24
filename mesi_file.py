@@ -153,7 +153,9 @@ def parse(string):
     
     def find_wildname_list(symbol):
         pat = re.compile(fnmatch.translate(symbol))
-        return [coe_vars[k] for k in coe_vars.keys() if pat.match(k)]
+        lst = [coe_vars[k] for k in coe_vars.keys() if pat.match(k)]
+        print 'find_wildname_list(',symbol,') => ',lst
+        return lst
     
     expr = MatchFirst([hex_integer, integer, "&" + NAME, "$" + NAME, NAME, dblQuotedString])
     class expr_eval():
@@ -185,6 +187,7 @@ def parse(string):
             self.values = tok
         def eval(self, parent):
             vals = []
+            print 'processing',self.values
             for t in self.values:
                 if isinstance(t,int):
                     vals.append(t)
@@ -204,7 +207,7 @@ def parse(string):
     list_expr = Group( list_expr )
     
     INDEX = Suppress('@') + expr("index")
-    DESCRIPTION = (dblQuotedString.copy().setParseAction(removeQuotes))("description")
+    DESCRIPTION = Suppress(':') + (dblQuotedString.copy().setParseAction(removeQuotes))("description")
     STRING_LITERAL = dblQuotedString.copy().setParseAction(removeQuotes)
     DEFAULT = EQUAL + expr("default")
     PROPERTY = ZeroOrMore(Group(Suppress('.') + NAME("key") + EQUAL + expr("value")))("property")
@@ -212,6 +215,7 @@ def parse(string):
     #expr.setDebug()
     #map_expr.setDebug()
     #INDEX.setDebug()
+    #DESCRIPTION.setDebug()
     
     class make_object():
         """Simple object to hold a make statement"""
@@ -248,6 +252,8 @@ def parse(string):
             self.default = value
         def __repr__(self):
             return "assign_object(symbol='%s', default='%s')" % (self.symbol, self.default)
+        def coe_reference(self):
+            raise TypeError("Error: assign_object %s cannot be referenced" % self.symbol)
     def add_coe_literal(symbol, value):    
         obj = assign_object(symbol, value)
         coe_vars[symbol] = obj
@@ -337,42 +343,71 @@ def parse(string):
             return so
     subindex_statement.setParseAction(eval_subindex)    
     
-    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ZeroOrMore(INDEX | DESCRIPTION) + PROPERTY + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
+    SPECIFICATION = delimitedList(Group(OneOrMore(INDEX | DESCRIPTION)))("specification")
+    #SPECIFICATION.setDebug()
+    
+    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ((LPAR + SPECIFICATION + RPAR) | ZeroOrMore(INDEX | DESCRIPTION)) + PROPERTY + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
     class eval_record():
         def __init__(self, tok):
             self.values = tok
             self.default_access = 0
-        def eval(self,parent):
-            # parent is some object with .last_index
-            statement_parms = self.values.asDict()
             
-            if 'index' in statement_parms:
-                index = statement_parms['index'][0].eval(self)
+        def make_obj(self, symbol, parms, spec):
+            if 'index' in spec:
+                index = spec['index'][0].eval(self)
             else:
-                index = parent.last_index+1
-            parent.last_index = index
-            symbol = statement_parms['symbol']
-            description = statement_parms.get('description', 'Index %#04x'%index) 
+                index = self.parent.last_index+1
+            self.parent.last_index = index
+            
+            description = spec.get('description', 'Index %#04x'%index) 
 
             obj = coe_object(coe_object.oc_record, index, symbol, description)
-            obj.default_access = statement_parms.get('access',0)
+            obj.default_access = self.default_access
+            obj.properties = self.properties
+            for key,value in self.properties.iteritems():
+                add_coe_literal('.'.join((symbol,key)), value)
+            
             coe_vars[symbol] = obj
             # Add nothing -- gets us a subindex 0 and padding
             obj.add()
-            
-            for sis in statement_parms['subindex']:
+        
+            for sis in parms['subindex']:
                 obj.subs.append( sis.eval(obj) )
             obj.subs[0].default = obj.max_subindex()
-			
-            obj.properties = {}            
+            
+            return obj
+            
+        def eval(self,parent):
+            self.parent = parent
+            # parent is some object with .last_index
+            statement_parms = self.values.asDict()
+            
+            self.default_access = statement_parms.get('access',0)
+
+            base_symbol = statement_parms['symbol']
+
+            self.properties = {}            
             if 'property' in statement_parms:
                 for prop in statement_parms['property']:
                     key = prop['key']
                     value = prop['value'][0].eval(self)
-                    obj.properties[key] = value
-                    add_coe_literal('.'.join((symbol,key)), value)
+                    self.properties[key] = value
 
-            return obj
+            if 'specification' in statement_parms:
+                print '!@#',statement_parms
+                objs = []     
+                typedef_len = len(statement_parms['specification'])
+                for i in xrange(typedef_len):
+                    spec = statement_parms['specification'][i].asDict()
+                    print '*&^',i, spec
+                    symbol = '%s_%d' % (base_symbol, i)
+                    obj = self.make_obj(symbol, statement_parms, spec)
+                    obj.typedef = typedef_specification(base_symbol, typedef_len, i)
+                    objs.append(obj)
+                return objs
+            else:
+                return self.make_obj(base_symbol, statement_parms, statement_parms)
+                
     record_statement.setParseAction(eval_record)    
 
     array_statement = TYPE("btype") + ACCESS("access") + NAME("symbol") + LBRACK + Optional(expr("size")) + RBRACK + ZeroOrMore(INDEX | DESCRIPTION) + PROPERTY + Optional(EQUAL + LBRACE + list_expr("values") + RBRACE) + SEMI
@@ -434,12 +469,15 @@ def parse(string):
             for s in self.values:
                 obj = s[0].eval(result)
                 if obj:
-                    result.coe_dict.append(obj)
+                    try:
+                        result.coe_dict.extend(obj)
+                    except TypeError:
+                        result.coe_dict.append(obj)
     body.ignore(cppStyleComment).setParseAction(eval_body)
 
     class result_object():
         def __init__(self):
-            self.last_index = 0
+            self.last_index = 0x6000
             self.coe_dict = []
             self.make_list = []
             self.settings = {}
@@ -460,218 +498,3 @@ def parse(string):
     result.settings = dict((k,getattr(coe_vars[k],'default',0)) for k in coe_vars.keys())    
     
     return result
-
-test = r"""
-// g5im.mesi -- Meta ESI file for G5 Instrument Module project
-
-// RxPDO Definitions
-record read rx_pdo_mapping pdo_dig_outputs @ 0x7100 "Digital Outputs" {
-    BOOL j101_7 =1 "J101-7";
-    BOOL j101_8 "J101-8" =1;
-    BOOL j101_9 "J101-9";
-    BOOL j101_10 "J101-10";
-    BOOL j102_a "J102-A";
-    BOOL j102_b "J102-B";
-    BOOL j103_a "J103-A";
-    BOOL j103_b "J103-B";
-    BOOL j104_a "J104-A";
-    BOOL j104_b "J104-B";
-    BOOL j105_a "J105-A";
-    BOOL j105_b "J105-B";
-    PAD4 reserved;
-};
-
-record read rx_pdo_mapping rx_pdo_dac_0 @0x7200 "Control (DAC) RxPDO-0" {
-    USINT servo_mode "Servo control mode select";
-    REAL data0 "Data 0"; // (various data depending on mode)
-    REAL data1 "Data 1";
-    BOOL dig_out "Digital Output";
-    BOOL rst_integ "Servo Integrator reset";
-    PAD6 reserved;
-};
-
-record read rx_pdo_mapping rx_pdo_dac_1 "Control (DAC) RxPDO-1" @ 0x7300  {
-    USINT servo_mode "Servo control mode select";
-    REAL data0 "Data 0"; // (various data depending on mode)
-    REAL data1 "Data 1";
-    BOOL dig_out "Digital Output";
-    BOOL rst_integ "Servo Integrator reset";
-    PAD6 reserved;
-};
-
-record read rx_pdo_mapping rx_pdo_dac_2 @0x7400 "Control (DAC) RxPDO-2" {
-    USINT servo_mode "Servo control mode select";
-    REAL data0 "Data 0"; // (various data depending on mode)
-    REAL data1 "Data 1";
-    BOOL dig_out "Digital Output";
-    BOOL rst_integ "Servo Integrator reset";
-    PAD6 reserved;
-};
-
-record read rx_pdo_mapping rx_pdo_dac_3 @0x7500 "Control (DAC) RxPDO-3" {
-    USINT servo_mode "Servo control mode select";
-    REAL data0 "Data 0"; // (various data depending on mode)
-    REAL data1 "Data 1";
-    BOOL dig_out "Digital Output";
-    BOOL rst_integ "Servo Integrator reset";
-    PAD6 reserved;
-};
-
-record read rx_pdo_mapping pdo_can_out @0x7600 "CAN Bus Transmit Data" {
-    USINT tx_cnt "Transmit data counter"; // Increments for every new message
-    USINT reserved "Reserved"; 		// All the following registers in SJA1000 format
-    USINT id_high "ID (10..3)";
-    USINT id_low "ID (2..0) RTR DLC";
-    USINT data_1 "Data 1";
-    USINT data_2 "Data 2";
-    USINT data_3 "Data 3";
-    USINT data_4 "Data 4";
-    USINT data_5 "Data 5";
-    USINT data_6 "Data 6";
-    USINT data_7 "Data 7";
-    USINT data_8 "Data 8"; 
-};
-
-// TxPDO Definitions
-record read tx_pdo_mapping pdo_super @0x6000 "Supervisory TxPDO" {
-    UDINT time_low "Low 32 bits of system time at sample 0";
-    BOOL teds_det1 "TEDS presence detect 1";
-    BOOL teds_det2 "TEDS presence detect 2";
-    BOOL teds_det3 "TEDS presence detect 3";
-    BOOL teds_det4 "TEDS presence detect 4";
-    PAD4 reserved;
-};
-
-record read tx_pdo_mapping pdo_dig_inputs @0x6100 "Digital Inputs" {
-    BOOL j101_7 "J101-7";
-    BOOL j101_8 "J101-8";
-    BOOL j101_9 "J101-9";
-    BOOL j101_10 "J101-10";
-    BOOL j102_a "J102-A";
-    BOOL j102_b "J102-B";
-    BOOL j103_a "J103-A";
-    BOOL j103_b "J103-B";
-    BOOL j104_a "J104-A";
-    BOOL j104_b "J104-B";
-    BOOL j105_a "J105-A";
-    BOOL j105_b "J105-B";
-    PAD4 reserved;
-};
-
-record read tx_pdo_mapping pdo_measure_0 @0x6200 "Measurement (ADC) TxPDO-0" {
-    REAL data0 "Sample 0"; 
-    REAL data1 "Sample 1";
-    REAL data2 "Sample 2";
-    REAL data3 "Sample 3";
-    REAL data4 "Sample 4";
-    BOOL dig_in "Digital Input";
-    BOOL config_valid "Configuration valid and measurement active";
-    BOOL measurement "Measurement toggle";
-    BOOL low_limit_ind "Low limit";
-    BOOL hi_limit_ind "High limit";
-    BOOL excitation_err_ind "Excitation error";
-    BOOL sync_err_ind "Synchronization error";
-    BOOL pga_err_ind "PGA Error";
-};
-
-record read tx_pdo_mapping pdo_measure_1 @0x6300 "Measurement (ADC) TxPDO-1" {
-    REAL data0 "Sample 0"; 
-    REAL data1 "Sample 1";
-    REAL data2 "Sample 2";
-    REAL data3 "Sample 3";
-    REAL data4 "Sample 4";
-    BOOL dig_in "Digital Input";
-    BOOL config_valid "Configuration valid and measurement active";
-    BOOL measurement "Measurement toggle";
-    BOOL low_limit_ind "Low limit";
-    BOOL hi_limit_ind "High limit";
-    BOOL excitation_err_ind "Excitation error";
-    BOOL sync_err_ind "Synchronization error";
-    BOOL pga_err_ind "PGA Error";
-};
-
-record read tx_pdo_mapping pdo_measure_2 @0x6400 "Measurement (ADC) TxPDO-2" {
-    REAL data0 "Sample 0"; 
-    REAL data1 "Sample 1";
-    REAL data2 "Sample 2";
-    REAL data3 "Sample 3";
-    REAL data4 "Sample 4";
-    BOOL dig_in "Digital Input";
-    BOOL config_valid "Configuration valid and measurement active";
-    BOOL measurement "Measurement toggle";
-    BOOL low_limit_ind "Low limit";
-    BOOL hi_limit_ind "High limit";
-    BOOL excitation_err_ind "Excitation error";
-    BOOL sync_err_ind "Synchronization error";
-    BOOL pga_err_ind "PGA Error";
-};
-
-record read tx_pdo_mapping pdo_measure_3 @0x6500 "Measurement (ADC) TxPDO-3" {
-    REAL data0 "Sample 0"; 
-    REAL data1 "Sample 1";
-    REAL data2 "Sample 2";
-    REAL data3 "Sample 3"; 
-    REAL data4 "Sample 4";
-    BOOL dig_in "Digital Input";
-    BOOL config_valid "Configuration valid and measurement active";
-    BOOL measurement "Measurement toggle";
-    BOOL low_limit_ind "Low limit";
-    BOOL hi_limit_ind "High limit";
-    BOOL excitation_err_ind "Excitation error";
-    BOOL sync_err_ind "Synchronization error";
-    BOOL pga_err_ind "PGA Error";
-};
-
-record read tx_pdo_mapping pdo_can_in @0x6600 "CAN Bus Receive Data" {
-    USINT rx_cnt "Receive data counter"; // Increments for every new message
-    USINT status "Status"; // All the following registers in SJA1000 format
-    USINT id_high "ID (10..3)";
-    USINT id_low "ID (2..0) RTR DLC";
-    USINT data_1 "Data 1";
-    USINT data_2 "Data 2";
-    USINT data_3 "Data 3";
-    USINT data_4 "Data 4";
-    USINT data_5 "Data 5";
-    USINT data_6 "Data 6";
-    USINT data_7 "Data 7";
-    USINT data_8 "Data 8"; 
-};
-
-// PDO Mappings
-UDINT read rx_pdo_map_dig_outputs[1] @0x1600 = { &pdo_dig_outputs.* };
-UDINT read rx_pdo_map_dac_0[1] = { &rx_pdo_dac_0.* , &rx_pdo_dac_1.* };
-UDINT read rx_pdo_map_dac_1[1] = { &rx_pdo_dac_1.* };
-UDINT read rx_pdo_map_dac_2[1] = { &rx_pdo_dac_2.* };
-UDINT read rx_pdo_map_dac_3[1] = { &rx_pdo_dac_3.* };
-UDINT read rx_pdo_map_can_out[1] = { &pdo_can_out.* };
-
-UDINT read tx_pdo_map_super[] @0x1a00 = { &pdo_super.* };
-UDINT read tx_pdo_map_dig_inputs[] = { &pdo_dig_inputs.* };
-UDINT read tx_pdo_map_measure_0[] = { &pdo_measure_0.* };
-UDINT read tx_pdo_map_measure_1[] = { &pdo_measure_1.* };
-UDINT read tx_pdo_map_measure_2[] = { &pdo_measure_2.* };
-UDINT read tx_pdo_map_measure_3[] = { &pdo_measure_3.* };
-UDINT read tx_pdo_map_can_in[] = { &pdo_can_in.* };
-
-// PDO Assigns
-UINT read sRxPDOassign[6] @0x1c12 = { $rx_pdo_map_* };  
-UINT read sTxPDOassign[6] @0x1c13 = { $tx_pdo_map_* };
-"""
-
-if __name__ == "__main__":
-    #try:
-    ast = parse(test)
-    import pprint
-    pprint.pprint(ast)
-    #except SemanticException, err:
-    #    print err
-    #    exit(3)
-    #except ParseException as err:    
-    #    print 'Error :{e.lineno} [col {e.col}]: {e.line}'.format(e=err)
-        #exit(3)
-
-
-
-#def parse(filename):
-#    with open(filename, 'r') as in:
-        

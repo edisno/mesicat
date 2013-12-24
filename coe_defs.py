@@ -191,8 +191,35 @@ class coe_sub_object:
     def hexdec_default(self):
         """Return a HexDecValue representation of the default value"""
         return '#x%x' % max(0,self.default)
-     
-class coe_object:
+
+class typedef_specification():
+    """
+    This class consolidates information concerning RECORDs which share the
+    same typedef struct and are implemented as arrays in C. The records 
+    appears as discrete PDOs in CoE
+    """
+    def __init__(self, base_name, size, index):
+        self.base_name = base_name
+        self.size = size
+        self.index = index
+
+    def typename(self):
+        """Typedef name of record"""
+        return self.base_name+'_type';
+
+    def array_decl(self):
+        """Array declaration for a set of similar PDOs"""
+        return '%s_type %s[%d];' % (self.base_name, self.base_name, self.size)
+        
+    def c_symbol(self):
+        """C symbol of the PDO"""
+        return '%s[%d]' % (self.base_name, self.index)
+        
+    def coe_symbol(self):
+        """CoE symbol of the PDO"""
+        return '%s_%d' % (self.base_name, self.index)
+
+class coe_object():
     """A representation of CoE objects. An object can be an array, variable, or
     record. In any event, the object always aggregates one or more subobjects
     where data is actually stored. In the case of a variable, only one subobject
@@ -212,6 +239,7 @@ class coe_object:
         self.index = index
         self.symbol = symbol
         self.description = description
+        self.typedef = None
         
         # Sub objects
         self.subs = []
