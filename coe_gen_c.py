@@ -94,7 +94,7 @@ def mapped_subindex_context(coe_dict, pdo):
         #    continue
 
         obj = find_obj_by_index(coe_dict, so.index)
-        symbol = '.'.join((obj.symbol,so.symbol))
+        symbol = '.'.join((obj.c_symbol(),so.symbol))
 
         tx_pdo_code = []
         value_shift = 0
@@ -183,6 +183,16 @@ def mapped_subindex_context(coe_dict, pdo):
 
     return subs
 
+def full_hex_defaults(world, pdo):
+    """
+    Return a C-style initializer list for the PDO struct. 
+    In the case of the first PDO of a merge PDO, return an
+    initializer suitable for the array of merged PDOs.
+    """
+    if pdo.merge == None or pdo.merge.index != 0:
+        return pdo.hex_defaults()
+    return ', '.join('{ %s }' % m.hex_defaults() for m in pdo.merge.members)
+
 def appl_context(world):
     # Convert large constants to hex, so we look more nerdy
     context = dict((k,hex(v) if isinstance(v,int) and 
@@ -200,8 +210,8 @@ def appl_context(world):
             'mapped_subs': mapped_subindex_context(world.coe_dict, pdo),
             'description': pdo.description,
             'c_type': (pdo.merge.typename() if pdo.merge else 'TOBJ'+pdo.hex_index()),
-            'symbol': (pdo.merge.c_symbol() if pdo.merge else pdo.symbol),
-            'hex_defaults': pdo.hex_defaults(),
+            'symbol': pdo.c_symbol(),
+            'hex_defaults': full_hex_defaults(world, pdo),
             'pdo_data_bitsize': pdo.pdo_data_bitsize(),
             'deftype': pdo.deftype(),
             'objflags': hex(pdo.object_code << 8 | pdo.max_subindex()),

@@ -198,7 +198,8 @@ class merge_specification():
     same typedef struct and are implemented as arrays in C. The records 
     appears as discrete PDOs in CoE
     """
-    def __init__(self, base_name, size, index):
+    def __init__(self, members, base_name, size, index):
+        self.members = members  # List of coe_object members of this merge
         self.base_name = base_name
         self.size = size
         self.index = index
@@ -405,6 +406,13 @@ class coe_object():
             return 'DEFTYPE_PDOMAPPING'
         else:
             return 'DEFTYPE_RECORD'
+            
+    def c_symbol(self):
+        """
+        Return the C-style symbol for this PDO respecting the RECORD merge
+        specification
+        """
+        return self.merge.c_symbol() if self.merge else self.symbol
             
         #SDO 0x1c00, "Sync manager type"
     def __str__(self):

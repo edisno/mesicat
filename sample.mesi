@@ -140,7 +140,7 @@ record read rx_pdo_mapping rx_pdo_dac ( @0x7200:"Channel 1 Control", @0x7300:"Ch
     REAL data1 : "Data 1";
     BOOL dig_out : "Digital Output";
     BOOL rst_integ : "Servo Integrator reset";
-    BIT6 reserved;
+    .PAD6 reserved;
 };
 
 record read rx_pdo_mapping pdo_can_out @0x7600 : "CAN Bus Transmit Data" {

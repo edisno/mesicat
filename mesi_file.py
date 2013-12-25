@@ -394,15 +394,13 @@ def parse(string):
                     self.properties[key] = value
 
             if 'merge' in statement_parms:
-                print '!@#',statement_parms['merge']
                 objs = []     
                 merge_len = len(statement_parms['merge'])
                 for i in xrange(merge_len):
                     spec = statement_parms['merge'][i].asDict()
                     symbol = '%s_%d' % (base_symbol, i)
                     obj = self.make_obj(symbol, statement_parms, spec)
-                    obj.merge = merge_specification(base_symbol, merge_len, i)
-                    print '****&^',obj
+                    obj.merge = merge_specification(objs, base_symbol, merge_len, i)
                     objs.append(obj)
                 return objs
             else:
