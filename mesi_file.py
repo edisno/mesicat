@@ -154,7 +154,7 @@ def parse(string):
     def find_wildname_list(symbol):
         pat = re.compile(fnmatch.translate(symbol))
         lst = [coe_vars[k] for k in coe_vars.keys() if pat.match(k)]
-        print 'find_wildname_list(',symbol,') => ',lst
+        #print 'find_wildname_list(',symbol,') => ',lst
         return lst
     
     expr = MatchFirst([hex_integer, integer, "&" + NAME, "$" + NAME, NAME, dblQuotedString])
@@ -187,7 +187,7 @@ def parse(string):
             self.values = tok
         def eval(self, parent):
             vals = []
-            print 'processing',self.values
+            #print 'processing',self.values
             for t in self.values:
                 if isinstance(t,int):
                     vals.append(t)
@@ -343,10 +343,10 @@ def parse(string):
             return so
     subindex_statement.setParseAction(eval_subindex)    
     
-    SPECIFICATION = delimitedList(Group(OneOrMore(INDEX | DESCRIPTION)))("specification")
-    #SPECIFICATION.setDebug()
+    MERGE = delimitedList(Group(OneOrMore(INDEX | DESCRIPTION)))("merge")
+    #MERGE.setDebug()
     
-    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ((LPAR + SPECIFICATION + RPAR) | ZeroOrMore(INDEX | DESCRIPTION)) + PROPERTY + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
+    record_statement = RECORD + ACCESS("access") + NAME("symbol") + ((LPAR + MERGE + RPAR) | ZeroOrMore(INDEX | DESCRIPTION)) + PROPERTY + Group(LBRACE + OneOrMore(subindex_statement) + RBRACE)("subindex") + SEMI
     class eval_record():
         def __init__(self, tok):
             self.values = tok
@@ -393,16 +393,16 @@ def parse(string):
                     value = prop['value'][0].eval(self)
                     self.properties[key] = value
 
-            if 'specification' in statement_parms:
-                print '!@#',statement_parms
+            if 'merge' in statement_parms:
+                print '!@#',statement_parms['merge']
                 objs = []     
-                typedef_len = len(statement_parms['specification'])
-                for i in xrange(typedef_len):
-                    spec = statement_parms['specification'][i].asDict()
-                    print '*&^',i, spec
+                merge_len = len(statement_parms['merge'])
+                for i in xrange(merge_len):
+                    spec = statement_parms['merge'][i].asDict()
                     symbol = '%s_%d' % (base_symbol, i)
                     obj = self.make_obj(symbol, statement_parms, spec)
-                    obj.typedef = typedef_specification(base_symbol, typedef_len, i)
+                    obj.merge = merge_specification(base_symbol, merge_len, i)
+                    print '****&^',obj
                     objs.append(obj)
                 return objs
             else:

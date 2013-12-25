@@ -23,22 +23,22 @@ extern const unsigned char esc_eeprom[];
 extern const TSDOINFOENTRYDESC asEntryDesc0x{{hex_index}}[];
 extern const UCHAR aName0x{{hex_index}}[];
 
-{{^typedef?}}
+{{^merge?}}
 typedef struct STRUCT_PACKED_START {
 {{#subs}}
     {{ctype}};
 {{/subs}}} STRUCT_PACKED_END TOBJ{{hex_index}};  // data size:{{pdo_data_bitsize}}
 
 extern TOBJ{{hex_index}} {{symbol}};
-{{/typedef?}}
-{{#typedef0?}}
+{{/merge?}}
+{{#merge0?}}
 typedef struct STRUCT_PACKED_START {
 {{#subs}}
     {{ctype}};
-{{/subs}}} STRUCT_PACKED_END {{typedef_base_name}}_type;  // data size:{{pdo_data_bitsize}}
+{{/subs}}} STRUCT_PACKED_END {{merge_base_name}}_type;  // data size:{{pdo_data_bitsize}}
 
-extern {{typedef_base_name}}_type {{typedef_base_name}}[{{typedef_size}}];
-{{/typedef0?}}
+extern {{merge_base_name}}_type {{merge_base_name}}[{{merge_size}}];
+{{/merge0?}}{{#merge?}}// Object 0x{{hex_index}} is stored in {{merge_base_name}}[{{merge_index}}]{{/merge?}}
 {{/pdos}}
 
 extern TOBJECT ApplicationObjDic[];

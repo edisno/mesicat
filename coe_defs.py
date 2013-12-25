@@ -192,7 +192,7 @@ class coe_sub_object:
         """Return a HexDecValue representation of the default value"""
         return '#x%x' % max(0,self.default)
 
-class typedef_specification():
+class merge_specification():
     """
     This class consolidates information concerning RECORDs which share the
     same typedef struct and are implemented as arrays in C. The records 
@@ -239,7 +239,7 @@ class coe_object():
         self.index = index
         self.symbol = symbol
         self.description = description
-        self.typedef = None
+        self.merge = None
         
         # Sub objects
         self.subs = []

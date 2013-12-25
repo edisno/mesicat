@@ -134,7 +134,7 @@ record read rx_pdo_mapping pdo_dig_outputs @0x7000:"Digital Outputs" { // .someP
     BOOL x1001 : "x1001";
 };
 
-record read rx_pdo_mapping rx_pdo_dac ( @0x7200:"Channel 1 Control" ) {
+record read rx_pdo_mapping rx_pdo_dac ( @0x7200:"Channel 1 Control", @0x7300:"Channel 2 Control" ) {
     USINT servo_mode : "Servo control mode select";
     REAL data0 : "Data 0"; // (various data depending on mode)
     REAL data1 : "Data 1";
@@ -220,6 +220,7 @@ record read tx_pdo_mapping pdo_can_in @0x6600 : "CAN Bus Receive Data" {
 //////////////////////////////////////////////////////////////////////////
 UDINT read rx_pdo_map_dig_outputs[] @0x1600 : "Digital Outputs Map" = { &pdo_dig_outputs.* };
 UDINT read rx_pdo_map_dac_0[] : "Channel 1 Control Map" = { &rx_pdo_dac_0.* };
+UDINT read rx_pdo_map_dac_1[] : "Channel 2 Control Map" = { &rx_pdo_dac_1.* };
 UDINT read rx_pdo_map_can_out[] : "CAN Bus Transmit Data Map" = { &pdo_can_out.* };
 
 UDINT read tx_pdo_map_super[] @0x1a00 : "Supervisory TxPDO Map" = { &pdo_super.* };

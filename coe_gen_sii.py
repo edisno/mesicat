@@ -128,12 +128,12 @@ def cdump(data):
     hexapad = itertools.chain(('%#04x'%ord(d) for d in data),itertools.repeat('0',((count+15)/16)*16-count))
     return '    '+',\n    '.join( ', '.join(l) for l in zip(*[iter(hexapad)]*16))
 
-def pack_cat_layout(stuff, layout, prefix=''):
+def pack_cat_layout(settings_dict, layout, prefix=''):
     fmt = '<'+''.join(v[2] for v in layout)  
-    pargs = [stuff.get(prefix+v[0],v[1]) for v in layout if 'x' not in v[2]]
-    bad =  bytearray(struct.pack(fmt, *pargs))
-    #print fmt, pargs, len(bad)
-    return bad
+    pargs = [settings_dict.get(prefix+v[0],v[1]) for v in layout if 'x' not in v[2]]
+    bytes =  bytearray(struct.pack(fmt, *pargs))
+    #print fmt, pargs, len(bytes)
+    return bytes
 
 def head_n_pad(sctype, data):
     if len(data)&1:
@@ -149,19 +149,19 @@ def pack_cat_strings(*args):
     """
     return head_n_pad(10, bytearray(chr(len(args))+''.join(struct.pack('<%dp'%(len(s)+1),s) for s in args)))
 
-def pack_cat_general(stuff):
+def pack_cat_general(settings_dict):
     """
-    Pack stuff into SII Structure Category General
+    Pack SII Structure Category General
     IAW ETG.6000.6 Table 21
     """
-    return head_n_pad(30, pack_cat_layout(stuff, sii_general_layout))
+    return head_n_pad(30, pack_cat_layout(settings_dict, sii_general_layout))
 
-def pack_cat_fmmu(stuff):
+def pack_cat_fmmu(settings_dict):
     """
-    Pack stuff into SII Structure Category FMMU
+    Pack SII Structure Category FMMU
     IAW ETG.6000.6 Table 22
     """
-    d = b''.join(chr(stuff.get('fmmu%d.mode'%i, 0xff)) for i in xrange(8))
+    d = b''.join(chr(settings_dict.get('fmmu%d.mode'%i, 0xff)) for i in xrange(8))
 
     # strip unused modes
     d = bytearray( string.rstrip(d, '\xff') )    
@@ -172,12 +172,12 @@ def pack_cat_fmmu(stuff):
     
     return head_n_pad(40, d)
 
-def pack_cat_sm(stuff):
+def pack_cat_sm(settings_dict):
     """
-    Pack stuff into SII Structure Category SM
+    Pack SII Structure Category SM
     IAW ETG.6000.6 Table 23
     """
-    sm_count = max(i+1 if stuff.get('sm%d.enable' % i,0) else 0 for i in xrange(8))
+    sm_count = max(i+1 if settings_dict.get('sm%d.enable' % i,0) else 0 for i in xrange(8))
     
     sm_bin = bytearray()
 
@@ -185,23 +185,24 @@ def pack_cat_sm(stuff):
         return sm_bin
 
     for i in xrange(sm_count):
-        sm_bin += pack_cat_layout(stuff, sii_sm_layout, 'sm%d.'%i)
+        sm_bin += pack_cat_layout(settings_dict, sii_sm_layout, 'sm%d.'%i)
         
     return head_n_pad(41, sm_bin)
 
-def pack_cat_dc(stuff):
+def pack_cat_dc(settings_dict):
     """
-    Pack stuff into SII Structure Category DC
-    *** DOUBLE TOP SECRET *** UNDOCUMENTED BY ETG ***
+    Pack SII Structure Category DC
+    No reference to standard available
+    Ref: http://code.google.com/p/atrias/wiki/EtherCAT_SII_File
     """
     dc_bin = bytearray()
     
-    if not stuff['DC_SUPPORTED']:
+    if not settings_dict['DC_SUPPORTED']:
         return dc_bin
         
     for i in xrange(8):
-        if stuff.get('dc%d.name' % i):
-            dc_bin += pack_cat_layout(stuff, sii_dc_layout, 'dc%d.'%i)
+        if settings_dict.get('dc%d.name' % i):
+            dc_bin += pack_cat_layout(settings_dict, sii_dc_layout, 'dc%d.'%i)
     
     # Return an empty bytearray if we find no DC settings.
     if not dc_bin:
