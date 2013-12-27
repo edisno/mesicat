@@ -191,6 +191,14 @@ class coe_sub_object:
     def hexdec_default(self):
         """Return a HexDecValue representation of the default value"""
         return '#x%x' % max(0,self.default)
+        
+    def c_default(self):
+        if isinstance(self.default, int) and self.default>9:
+            return hex(self.default)
+        elif isinstance(self.default, basestring):
+            return '"%s"' % self.default
+        else:
+            return str(self.default)
 
 class merge_specification():
     """
@@ -376,7 +384,7 @@ class coe_object():
         """Return a comma delimited list of hex default values suitable for
         use in a C-style initializer statement
         """
-        return ','.join('%#x'%so.default for so in self.subs)
+        return ','.join(so.c_default() for so in self.subs)
         
     def pdo_data_bitsize(self):
         "Return size of PDO data (excluding subindex 0)"

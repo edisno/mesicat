@@ -149,6 +149,7 @@ def parse(string):
     NAME = Word(alphas+"_", alphanums+"_.")
     WILDNAME = Word(alphas+"_", alphanums+"_.*")
     integer = Regex(r"[+-]?\d+").setParseAction(lambda tok: int(tok[0]))
+    real_value = Regex(r"[+-]?\d+\.\d+([eE][+-]?[0-9]+)?").setParseAction(lambda tok: float(tok[0]))
     hex_integer = Regex(r"0x[0-9a-zA-Z]+").setParseAction(lambda tok: int(tok[0],16))
     
     def find_wildname_list(symbol):
@@ -157,14 +158,14 @@ def parse(string):
         #print 'find_wildname_list(',symbol,') => ',lst
         return lst
     
-    expr = MatchFirst([hex_integer, integer, "&" + NAME, "$" + NAME, NAME, dblQuotedString])
+    expr = MatchFirst([hex_integer, real_value, integer, "&" + NAME, "$" + NAME, NAME, dblQuotedString])
     class expr_eval():
         def __init__(self, tok):
             self.values = tok
         def eval(self, parent):
             t = self.values
             
-            if isinstance(t[0],int):
+            if isinstance(t[0],int) or isinstance(t[0],float):
                 return t[0]
                 
             if t[0][0]=='"':
@@ -189,7 +190,7 @@ def parse(string):
             vals = []
             #print 'processing',self.values
             for t in self.values:
-                if isinstance(t,int):
+                if isinstance(t,int) or isinstance(t,float):
                     vals.append(t)
                     continue
 

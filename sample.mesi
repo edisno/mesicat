@@ -137,7 +137,7 @@ record read rx_pdo_mapping pdo_dig_outputs @0x7000:"Digital Outputs" { // .someP
 record read rx_pdo_mapping rx_pdo_dac ( @0x7200:"Channel 1 Control", @0x7300:"Channel 2 Control" ) {
     USINT servo_mode : "Servo control mode select";
     REAL data0 : "Data 0"; // (various data depending on mode)
-    REAL data1 : "Data 1";
+    REAL data1 : "Data 1" =1.0;
     BOOL dig_out : "Digital Output";
     BOOL rst_integ : "Servo Integrator reset";
     .PAD6 reserved;
