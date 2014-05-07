@@ -211,8 +211,7 @@ def pack_cat_dc(settings_dict):
     return head_n_pad(60, dc_bin)
 
 def make(world, *args):
-    # Essentially, many of the settings are inpired by the ecat_def header file
-    # but forced to lower case
+    # Essentially, many of the settings are inspired by the ecat_def header file
     settings = world.settings
 
     # Build ConfigData
