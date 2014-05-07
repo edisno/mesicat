@@ -1,0 +1,263 @@
+// sample.mesi -- Meta ESI file 
+
+//////////////////////////////////////////////////////////////////////////
+// Build instructions
+//////////////////////////////////////////////////////////////////////////
+
+// Prepare default settings and business logic
+make mesi_settings;
+
+// SII EEPROM -- create eeprom.bin. Must occur before C and XML
+make coe_gen_sii;
+
+// C code generation
+make coe_gen_c coe_h.mustache sample_coe.h;     // Object dictionary definition
+make coe_gen_c coe_c.mustache sample_coe.c;     // Object dictionary declarations and intialization
+make coe_gen_c ecat_def_h.mustache ecat_def.h;       // SSC Project configuration
+make coe_gen_c esc_eeprom_c.mustache esc_eeprom.c;   // SII EEPROM emulation initializer
+
+// ESI Generation
+make coe_gen_xml Sample_EtherCATInfo_ReferenceCopy.xml Sample_EtherCATInfo.xml;
+
+//////////////////////////////////////////////////////////////////////////
+// SSC configuration
+//////////////////////////////////////////////////////////////////////////
+
+VENDOR_ID=0x0000FFFF;
+PRODUCT_CODE=0x50000001;
+REVISION_NUMBER=0x000000100;
+SERIAL_NUMBER=0x00000000;
+
+DEVICE_PROFILE_TYPE=0x00001389;  // Slave device type (Object 0x1000)
+DEVICE_NAME="Sample";        // Name of the slave device (Object 0x1008)
+DEVICE_HW_VERSION="0.4A";
+DEVICE_SW_VERSION="0.01";
+GROUP_NAME="Sample";
+TYPE_NAME="Sample";
+
+COE_SUPPORTED=1;
+COMPLETE_ACCESS_SUPPORTED=1;
+SEGMENTED_SDO_SUPPORTED=1;
+
+FOE_SUPPORTED=1;
+FOE_SAVE_FILES=1;
+BOOTSTRAPMODE_SUPPORTED=1;
+
+TIESC_HW=1;
+TIESC_APPLICATION=1;
+UC_SET_ECAT_LED=1;
+
+ESC_EEPROM_EMULATION=1;
+AL_EVENT_ENABLED=1;
+
+FOE_SUPPORTED=1;
+FOE_SAVE_FILES=1;
+MAX_FILE_SIZE=0x500;
+BOOTSTRAPMODE_SUPPORTED=1;
+
+ESC_SM_WD_SUPPORTED=1;
+
+physics="YY"; // MII, MII, unused, unused
+
+// TODO: this needs to be moved into the business logic
+fmmu0.mode=1;
+fmmu1.mode=2;
+fmmu2.mode=3;
+
+// TODO: this need to be moved into the business logic
+sm0.start_addr=0x1000;
+sm0.size=128;
+sm0.control=0x26;
+sm0.enable=0x01;
+sm0.type=0x01;  // Mailbox out
+sm0.min_size=0x22;
+sm0.max_size=0x100;
+
+sm1.start_addr=0x1400;
+sm1.size=128;
+sm1.control=0x22;
+sm1.enable=0x01;
+sm1.type=0x02;  // Mailbox in
+sm1.min_size=0x22;
+sm1.max_size=0x100;
+
+sm2.start_addr=0x1800;
+sm2.size=54;
+sm2.control=0x64;
+sm2.enable=0x01;
+sm2.type=0x03;  // Outputs
+
+sm3.start_addr=0x1c00;
+sm3.size=103;
+sm3.control=0x20;
+sm3.enable=0x01;
+sm3.type=0x04;  // Inputs
+
+// Distributed clock configuration
+DC_SUPPORTED=1;
+
+dc0.name="Synchron";
+dc0.sync0_cycle=0;     
+dc0.sync0_shift=0;        
+dc0.sync0_cycle_factor=0;
+dc0.sync1_shift=0;
+dc0.sync1_cycle_factor=0;
+dc0.assign_activate=0;
+
+dc1.name="DC";
+dc1.sync0_cycle=0;     
+dc1.sync0_shift=0;        
+dc1.sync0_cycle_factor=1;
+dc1.sync1_shift=0;
+dc1.sync1_cycle_factor=0;
+dc1.assign_activate=0x700;
+
+//////////////////////////////////////////////////////////////////////////
+// RxPDO Definitions
+//////////////////////////////////////////////////////////////////////////
+record read rx_pdo_mapping pdo_dig_outputs @0x7000:"Digital Outputs" { // .someProperty=2  -- causing an error when referenced by the map array
+    BOOL j101_7 : "J101-7";
+    BOOL j101_8 : "J101-8";
+    BOOL j101_9 : "J101-9";
+    BOOL j101_10 : "J101-10";
+    BOOL j102_a : "J102-A";
+    BOOL j102_b : "J102-B";
+    BOOL j103_a : "J103-A";
+    BOOL j103_b : "J103-B";
+    BOOL j104_a : "J104-A";
+    BOOL j104_b : "J104-B";
+    BOOL j105_a : "J105-A";
+    BOOL j105_b : "J105-B";
+    BOOL x701 : "x701";
+    BOOL x801 : "x801";
+    BOOL x901 : "x901";
+    BOOL x1001 : "x1001";
+};
+
+record read rx_pdo_mapping rx_pdo_dac ( @0x7200:"Channel 1 Control", @0x7300:"Channel 2 Control" ) {
+    USINT servo_mode : "Servo control mode select";
+    REAL data0 : "Data 0"; // (various data depending on mode)
+    REAL data1 : "Data 1" =1.0;
+    BOOL dig_out : "Digital Output";
+    BOOL rst_integ : "Servo Integrator reset";
+    .PAD6 reserved;
+};
+
+record read rx_pdo_mapping pdo_can_out @0x7600 : "CAN Bus Transmit Data" {
+    USINT tx_cnt : "Transmit data counter"; // Increments for every new message
+    USINT reserved : "Reserved"; 		// All the following registers in SJA1000 format
+    USINT id_high : "ID (10..3)";
+    USINT id_low : "ID (2..0) RTR DLC";
+    USINT data_1 : "Data 1";
+    USINT data_2 : "Data 2";
+    USINT data_3 : "Data 3";
+    USINT data_4 : "Data 4";
+    USINT data_5 : "Data 5";
+    USINT data_6 : "Data 6";
+    USINT data_7 : "Data 7";
+    USINT data_8 : "Data 8"; 
+};
+
+//////////////////////////////////////////////////////////////////////////
+// TxPDO Definitions
+//////////////////////////////////////////////////////////////////////////
+record read tx_pdo_mapping pdo_super @0x6000 : "Supervisory TxPDO" {
+    UDINT time_low : "Low 32 bits of system time at sample 0";
+};
+
+record read tx_pdo_mapping pdo_dig_inputs @0x6100 : "Digital Inputs" {
+    BOOL j101_7 : "J101-7";
+    BOOL j101_8 : "J101-8";
+    BOOL j101_9 : "J101-9";
+    BOOL j101_10 : "J101-10";
+    BOOL j102_a : "J102-A";
+    BOOL j102_b : "J102-B";
+    BOOL j103_a : "J103-A";
+    BOOL j103_b : "J103-B";
+    BOOL j104_a : "J104-A";
+    BOOL j104_b : "J104-B";
+    BOOL j105_a : "J105-A";
+    BOOL j105_b : "J105-B";
+    BOOL x701 : "x701";
+    BOOL x801 : "x801";
+    BOOL x901 : "x901";
+    BOOL x1001 : "x1001";
+};
+
+record read tx_pdo_mapping pdo_measure_0 @0x6200 : "Channel 1 Measurement" {
+    REAL data0 : "Sample 0"; 
+    REAL data1 : "Sample 1";
+    REAL data2 : "Sample 2";
+    REAL data3 : "Sample 3";
+    REAL data4 : "Sample 4";
+    BOOL dig_in : "Digital Input";
+    BOOL config_valid : "Configuration valid and measurement active";
+    BOOL measurement : "Measurement toggle";
+    BOOL low_limit_ind : "Low limit";
+    BOOL hi_limit_ind : "High limit";
+    BOOL excitation_err_ind : "Excitation error";
+    BOOL sync_err_ind : "Synchronization error";
+    BOOL pga_err_ind : "PGA Error";
+};
+
+record read tx_pdo_mapping pdo_can_in @0x6600 : "CAN Bus Receive Data" {
+    USINT rx_cnt : "Receive data counter"; // Increments for every new message
+    USINT status : "Status"; // All the following registers in SJA1000 format
+    USINT id_high : "ID (10..3)";
+    USINT id_low : "ID (2..0) RTR DLC";
+    USINT data_1 : "Data 1";
+    USINT data_2 : "Data 2";
+    USINT data_3 : "Data 3";
+    USINT data_4 : "Data 4";
+    USINT data_5 : "Data 5";
+    USINT data_6 : "Data 6";
+    USINT data_7 : "Data 7";
+    USINT data_8 : "Data 8"; 
+};
+
+//////////////////////////////////////////////////////////////////////////
+// PDO Mappings
+//////////////////////////////////////////////////////////////////////////
+UDINT read rx_pdo_map_dig_outputs[] @0x1600 : "Digital Outputs Map" = { &pdo_dig_outputs.* };
+UDINT read rx_pdo_map_dac_0[] : "Channel 1 Control Map" = { &rx_pdo_dac_0.* };
+UDINT read rx_pdo_map_dac_1[] : "Channel 2 Control Map" = { &rx_pdo_dac_1.* };
+UDINT read rx_pdo_map_can_out[] : "CAN Bus Transmit Data Map" = { &pdo_can_out.* };
+
+UDINT read tx_pdo_map_super[] @0x1a00 : "Supervisory TxPDO Map" = { &pdo_super.* };
+UDINT read tx_pdo_map_dig_inputs[] : "Digital Inputs Map" = { &pdo_dig_inputs.* };
+UDINT read tx_pdo_map_measure_0[] : "Channel 1 Measurement Map" = { &pdo_measure_0.* };
+UDINT read tx_pdo_map_can_in[] : "CAN Bus Receive Data Map" = { &pdo_can_in.* };
+
+//////////////////////////////////////////////////////////////////////////
+// PDO Assigns
+//////////////////////////////////////////////////////////////////////////
+UINT read sRxPDOassign[] @0x1c12 : "RxPDO Assignment"  .NonVolatileOffset=0x200 = { $rx_pdo_map_* };  
+UINT read sTxPDOassign[] @0x1c13 : "TxPDO Assignment" = { $tx_pdo_map_* };
+
+//////////////////////////////////////////////////////////////////////////
+// Channel Configuration
+//////////////////////////////////////////////////////////////////////////
+record readwrite channel_1_config @0x8200 : "Channel 1 Configuration" .Write="update_pga" .Read="fetch_pga" .NonVolatileOffset=0x100 {
+    USINT mode : "Mode";
+    USINT ch_a_gainsel : "Channel A PGA Gain Selection";
+    USINT ch_b_gainsel : "Channel B PGA Gain Selection";
+};
+
+
+//////////////////////////////////////////////////////////////////////////
+// Channel Information
+//////////////////////////////////////////////////////////////////////////
+record read channel_1_info @0x9200 : "Channel 1 Information" {
+	UDINT ch_a_raw_adc : "Channel A raw ADC";
+	UDINT ch_b_raw_adc : "Channel B raw ADC";
+};
+
+//////////////////////////////////////////////////////////////////////////
+//	This section is optional/proposed/needs revision
+//////////////////////////////////////////////////////////////////////////
+record read mdprofile @0xf000 : "Modular Device Profile" { 
+	UINT stride =0x0100;
+	UINT count =7;
+};
+UDINT readwrite dsi_access @0xf008 : "Manufacturer Access Code Word";
+UDINT read module_list[] @0xf010 : "Module List" = { 0, 0, 300, 300, 300, 300, 0 };
